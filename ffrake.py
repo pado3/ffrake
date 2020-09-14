@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# ffmpegを使って、パートを抜き出してまとめるスクリプト　の、デバッグ用
+# ffmpegを使って、パートを抜き出してまとめるスクリプト
 # print('usage: ./ffrake.py 入力ファイル 出力ファイル 開始時間1 終了時間1 ...')
 import os
 import subprocess
