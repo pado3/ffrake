@@ -6,6 +6,16 @@ import subprocess
 import sys
 
 
+# 一時ファイルの削除
+def deltmp(infile):
+    try:
+        os.remove(infile)
+        # print('{}を削除しました'.format(infile))
+    except Exception:
+        pass
+    return
+
+
 # 時間を秒に変換 zipと複数のループ変数を使ってみた
 def hms2sec(hms_str):
     sec, hms = 0, hms_str.split(':')
@@ -34,9 +44,11 @@ def filechk(infile, outfile, ext_in):
     # 出力ファイルが被れば.bakにする、既に.bakがあれば消してしまう
     if os.path.exists(outfile):
         bakfile = root_out + '.bak'
-        if os.path.exists(bakfile):
+        try:
             os.remove(bakfile)
             print('出力ファイルの.bakがあったのを削除しました')
+        except Exception:
+            pass
         os.rename(outfile, bakfile)
         print('出力ファイル名が被ったので前のを.bakにしました')
     return outfile
@@ -45,8 +57,7 @@ def filechk(infile, outfile, ext_in):
 # ffmpegを使って部分ファイルを切り出す
 def ffextract(infile, outfile, start_str, stop_str):
     # 前回異常終了などで一時ファイルが存在した場合は消しておく
-    if os.path.exists(outfile):
-        os.remove(outfile)
+    deltmp(outfile)
     # 開始時間
     start_sec = hms2sec(start_str)
     # 終了時間
@@ -94,9 +105,10 @@ def main():
     outfile = filechk(infile, outfile, ext_in)
     # 区間数は入力された時間の数/2, 奇数の入力はintで切り捨てて無視
     ticks_count = int(len(ticks_str)/2)
-    # 一時ファイルのリストを内包表記で作成
+    # 一時ファイルのリストを内包表記とmapとlambdaで作成
     tmpfiles = \
-        ['ffrake' + str(i).zfill(3) + ext_in for i in range(ticks_count)]
+        list(map(
+            lambda i: 'ffrake' + str(i).zfill(3) + ext_in, range(ticks_count)))
     # ffmpegを使って部分ファイルを切り出す enumerateを使ってみた
     for i, tmpfile in enumerate(tmpfiles):
         print('抽出{}:'.format(i+1), end='')
@@ -106,9 +118,8 @@ def main():
     # ffmpegを使って部分ファイルを結合する
     ffconcat(tmpfiles, listfile, outfile)
     # 一時ファイル削除（デバッグ時はコメントアウトして残す）
-    if os.path.exists(listfile):
-        os.remove(listfile)
-    [os.remove(f) for f in tmpfiles if os.path.exists(f)]
+    deltmp(listfile)
+    [deltmp(f) for f in tmpfiles]
     # printで同じものを出すときはformat引数の番号を指定
     mes = '\n処理終了！\n{0}を確認して下さい(ex. mplayer {0} )\n'
     print(mes.format(outfile))
