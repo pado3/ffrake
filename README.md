@@ -11,7 +11,7 @@ Python3とffmpegが必要です。動作確認は次の環境で行いました�
 1. MacBook Air 2017,  Catalina 10.15.6, Python 3.7.7, ffmpeg version 4.2.2<br />
 2. TinkerBoard, Debian GNU/Linux 9.13 (stretch), Python 3.5.3, ffmpeg version 3.2.15-0+deb9u1<br />
 3. VAIO C (VPCCB4AJ), Windows 10 ver.2004, Python 3.8.6rc1, ffmpeg version git-2020-08-31-4a11a6f<br />
-手持ちのいくつかのAACとmp3で編集できることを確認しています。おそらくffmpegが対応している形式であれば動作すると思います。<br />
+手持ちのいくつかのAAC・mp3・wavが編集できることを確認しています。おそらくffmpegが対応している形式であれば動作すると思います。<br />
 なお、映像についてもffmpegのオプションを調整すれば対応可能だと思いますが、関心ありません。<br />
 <p>
 使用方法<br />
