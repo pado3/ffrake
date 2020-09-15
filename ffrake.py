@@ -6,41 +6,58 @@ import subprocess
 import sys
 
 
+# 一時ファイルの削除
+def deltmp(infile):
+    try:
+        os.remove(infile)
+        # print('{}を削除しました'.format(infile))
+    except Exception:
+        pass
+    return
+
+
 # 時間を秒に変換 zipと複数のループ変数を使ってみた
 def hms2sec(hms_str):
-    sec = 0
-    hms = hms_str.split(':')
-    # [[HH:]MM:]SSが処理できるようにreversedして秒から処理
-    table = [1, 60, 3600]
-    for s, t in zip(table, reversed(hms)):
+    sec, hms = 0, hms_str.split(':')
+    # [[HH:]MM:]SSの時・分を省略できるように、reversedして秒から処理
+    table = [1.0, 60.0, 3600.0]
+    for t, s in zip(table, reversed(hms)):
         try:
-            sec += s * float(t)
+            sec += t * float(s)
         except Exception:
             sys.exit('時間に文字か何かが紛れていますorz')
     return sec
 
 
 # 入出力ファイルのチェック 内容には踏み込まない
-def filechk(infile, outfile):
+def filechk(infile, outfile, ext_in):
     # 入力ファイルが無ければエラー
     if not os.path.exists(infile):
         sys.exit('入力ファイルが見つかりません')
-    # 出力ファイルが被れば.bakにする, 既に.bakがあれば消してしまう
+    # 出力ファイルの拡張子を確認・修正する
+    root_out = os.path.splitext(outfile)[0]
+    ext_out = os.path.splitext(outfile)[1]
+    if ext_out != ext_in:
+        mes = '出力の拡張子{0}が入力の{1}と違ったので{1}に変更しました'
+        print(mes.format(ext_out, ext_in))
+        outfile = root_out + ext_in
+    # 出力ファイルが被れば.bakにする、既に.bakがあれば消してしまう
     if os.path.exists(outfile):
-        oldfile = outfile
-        bakfile = os.path.splitext(oldfile)[0] + '.bak'
-        if os.path.exists(bakfile):
+        bakfile = root_out + '.bak'
+        try:
             os.remove(bakfile)
             print('出力ファイルの.bakがあったのを削除しました')
-        os.rename(oldfile, bakfile)
-        print('出力ファイルが被ったので.bakにしました')
-    return
+        except Exception:
+            pass
+        os.rename(outfile, bakfile)
+        print('出力ファイル名が被ったので前のを.bakにしました')
+    return outfile
 
 
 # ffmpegを使って部分ファイルを切り出す
 def ffextract(infile, outfile, start_str, stop_str):
-    # 入出力ファイルのチェック
-    filechk(infile, outfile)
+    # 前回異常終了などで一時ファイルが存在した場合は消しておく
+    deltmp(outfile)
     # 開始時間
     start_sec = hms2sec(start_str)
     # 終了時間
@@ -48,7 +65,8 @@ def ffextract(infile, outfile, start_str, stop_str):
     # 経過時間
     dur_sec = stop_sec - start_sec
     if dur_sec <= 0:
-        sys.exit('時間指定の異常な区間がありますorz(長さが{}秒)'.format(dur_sec))
+        mes = '時間指定の異常な区間がありますorz(開始 {}, 終了 {}, 長さ {}秒)'
+        sys.exit(mes.format(start_str, stop_str, dur_sec))
     dur_str = str(dur_sec)
     # ffmpegのコマンド生成
     cmd = 'ffmpeg -loglevel warning -ss ' + start_str \
@@ -61,9 +79,7 @@ def ffextract(infile, outfile, start_str, stop_str):
 
 # ffmpegを使って部分ファイルを結合する
 def ffconcat(infiles, listfile, outfile):
-    # 入出力ファイルのチェック(入力は最後のだけ)
-    filechk(infiles[-1], outfile)
-    # 結合用リストファイルの作成
+    # 結合用リストファイルの作成 リスト内包表記を使ってみた
     with open(listfile, 'w') as f:
         [f.write("file '" + infile + "'\n") for infile in infiles]
     # ffmpegのコマンド生成
@@ -83,33 +99,30 @@ def main():
         mes = args[0] \
             + ' 入力ファイル 出力ファイル 開始時間1(HH:MM:SS) 終了1 開始2 終了2 ...'
         sys.exit('usage: {}'.format(mes))
-    # 入出力の拡張子が違うとffmpegのエラーが出ることがある。入力拡張子を確保する
+    # 入出力拡張子が違うとffmpegのエラーが出ることがある。入力拡張子を変数に確保しておく
     ext_in = os.path.splitext(infile)[1]
-    # ffmpegを使って部分ファイルを切り出す
+    # 入力ファイルの存在確認と出力ファイルの諸々処理
+    outfile = filechk(infile, outfile, ext_in)
+    # 区間数は入力された時間の数/2, 奇数の入力はintで切り捨てて無視
     ticks_count = int(len(ticks_str)/2)
-    tmpfiles = []
-    for i in range(ticks_count):
-        tmpfile = 'ffrake' + str(i).zfill(3) + ext_in
-        tmpfiles.append(tmpfile)
-        if os.path.exists(tmpfile):
-            os.remove(tmpfile)
+    # 一時ファイルのリストを内包表記とmapとlambdaで作成
+    tmpfiles = \
+        list(map(
+            lambda i: 'ffrake' + str(i).zfill(3) + ext_in, range(ticks_count)))
+    # ffmpegを使って部分ファイルを切り出す enumerateを使ってみた
+    for i, tmpfile in enumerate(tmpfiles):
         print('抽出{}:'.format(i+1), end='')
         ffextract(infile, tmpfile, ticks_str[i*2], ticks_str[i*2+1])
-    # ffmpegを使って部分ファイルを結合する
-    # 結合用リストファイル
+    # 結合用リストファイル 名前は決め打ち
     listfile = 'ffconcat.lst'
-    if os.path.splitext(outfile)[1] != ext_in:
-        outfile = os.path.splitext(outfile)[0] + ext_in
-        print("出力ファイルの拡張子が入力と違ったので修正しました")
+    # ffmpegを使って部分ファイルを結合する
     ffconcat(tmpfiles, listfile, outfile)
-    # ごみ掃除
-    if os.path.exists(listfile):
-        os.remove(listfile)
-    for tmpfile in tmpfiles:
-        if os.path.exists(tmpfile):
-            os.remove(tmpfile)
-    mes = '\n処理終了！\n{}を確認して下さい(ex. mplayer {} )\n'
-    print(mes.format(outfile, outfile))
+    # 一時ファイル削除（デバッグ時はコメントアウトして残す）
+    deltmp(listfile)
+    [deltmp(f) for f in tmpfiles]
+    # printで同じものを出すときはformat引数の番号を指定
+    mes = '\n処理終了！\n{0}を確認して下さい(ex. mplayer {0} )\n'
+    print(mes.format(outfile))
 
 
 if __name__ == '__main__':
